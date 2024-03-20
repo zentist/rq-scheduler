@@ -20,6 +20,7 @@ from .utils import from_unix, to_unix, get_next_scheduled_time, rationalize_unti
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TTL = 60 * 60 * 24 # 1 day
 
 class Scheduler(object):
     redis_scheduler_namespace_prefix = 'rq:scheduler_instance:'
@@ -128,9 +129,24 @@ class Scheduler(object):
         signal.signal(signal.SIGINT, stop)
         signal.signal(signal.SIGTERM, stop)
 
-    def _create_job(self, func, args=None, kwargs=None, commit=True,
-                    result_ttl=None, ttl=None, id=None, description=None,
-                    queue_name=None, timeout=None, meta=None, depends_on=None, on_success=None, on_failure=None):
+    def _create_job(
+        self,
+        func,
+        args=None,
+        kwargs=None,
+        commit=True,
+        result_ttl=None,
+        ttl=None,
+        failure_ttl=None,
+        id=None,
+        description=None,
+        queue_name=None,
+        timeout=None,
+        meta=None,
+        depends_on=None,
+        on_success=None,
+        on_failure=None,
+    ):
         """
         Creates an RQ job and saves it to Redis. The job is assigned to the
         given queue name if not None else it is assigned to scheduler queue by
@@ -141,10 +157,20 @@ class Scheduler(object):
         if kwargs is None:
             kwargs = {}
         job = self.job_class.create(
-            func, args=args, connection=self.connection,
-            kwargs=kwargs, result_ttl=result_ttl, ttl=ttl, id=id,
-            description=description, timeout=timeout, meta=meta,
-            depends_on=depends_on,on_success=on_success,on_failure=on_failure,
+            func,
+            args=args,
+            connection=self.connection,
+            kwargs=kwargs,
+            result_ttl=result_ttl,
+            ttl=ttl,
+            failure_ttl=failure_ttl,
+            id=id,
+            description=description,
+            timeout=timeout,
+            meta=meta,
+            depends_on=depends_on,
+            on_success=on_success,
+            on_failure=on_failure,
         )
         if queue_name:
             job.origin = queue_name
@@ -188,21 +214,34 @@ class Scheduler(object):
         scheduler = Scheduler(queue_name='default', connection=redis)
         scheduler.enqueue_at(datetime(2020, 1, 1), func, 'argument', keyword='argument')
         """
-        timeout = kwargs.pop('timeout', None)
-        job_id = kwargs.pop('job_id', None)
-        job_ttl = kwargs.pop('job_ttl', None)
-        job_result_ttl = kwargs.pop('job_result_ttl', None)
-        job_description = kwargs.pop('job_description', None)
-        depends_on = kwargs.pop('depends_on', None)
-        meta = kwargs.pop('meta', None)
-        queue_name = kwargs.pop('queue_name', None)
-        on_success = kwargs.pop('on_success', None)
-        on_failure = kwargs.pop('on_failure', None)
+        timeout = kwargs.pop("timeout", None)
+        job_id = kwargs.pop("job_id", None)
+        job_ttl = kwargs.pop("job_ttl", DEFAULT_TTL)
+        job_result_ttl = kwargs.pop("job_result_ttl", DEFAULT_TTL)
+        failure_ttl = kwargs.pop("failure_ttl", DEFAULT_TTL)
+        job_description = kwargs.pop("job_description", None)
+        depends_on = kwargs.pop("depends_on", None)
+        meta = kwargs.pop("meta", None)
+        queue_name = kwargs.pop("queue_name", None)
+        on_success = kwargs.pop("on_success", None)
+        on_failure = kwargs.pop("on_failure", None)
 
-        job = self._create_job(func, args=args, kwargs=kwargs, timeout=timeout,
-                               id=job_id, result_ttl=job_result_ttl, ttl=job_ttl,
-                               description=job_description, meta=meta, queue_name=queue_name, depends_on=depends_on,
-                               on_success=on_success, on_failure=on_failure)
+        job = self._create_job(
+            func,
+            args=args,
+            kwargs=kwargs,
+            timeout=timeout,
+            id=job_id,
+            result_ttl=job_result_ttl,
+            ttl=job_ttl,
+            failure_ttl=failure_ttl,
+            description=job_description,
+            meta=meta,
+            queue_name=queue_name,
+            depends_on=depends_on,
+            on_success=on_success,
+            on_failure=on_failure,
+        )
         self.connection.zadd(self.scheduled_jobs_key,
                               {job.id: to_unix(scheduled_time)})
         return job
@@ -213,23 +252,37 @@ class Scheduler(object):
         The job's scheduled execution time will be calculated by adding the timedelta
         to datetime.utcnow().
         """
-        timeout = kwargs.pop('timeout', None)
-        job_id = kwargs.pop('job_id', None)
-        job_ttl = kwargs.pop('job_ttl', None)
-        job_result_ttl = kwargs.pop('job_result_ttl', None)
-        job_description = kwargs.pop('job_description', None)
-        depends_on = kwargs.pop('depends_on', None)
-        meta = kwargs.pop('meta', None)
-        queue_name = kwargs.pop('queue_name', None)
-        on_success = kwargs.pop('on_success', None)
-        on_failure = kwargs.pop('on_failure', None)
+        timeout = kwargs.pop("timeout", None)
+        job_id = kwargs.pop("job_id", None)
+        job_ttl = kwargs.pop("job_ttl", DEFAULT_TTL)
+        failure_ttl = kwargs.pop("failure_ttl", DEFAULT_TTL)
+        job_result_ttl = kwargs.pop("job_result_ttl", DEFAULT_TTL)
+        job_description = kwargs.pop("job_description", None)
+        depends_on = kwargs.pop("depends_on", None)
+        meta = kwargs.pop("meta", None)
+        queue_name = kwargs.pop("queue_name", None)
+        on_success = kwargs.pop("on_success", None)
+        on_failure = kwargs.pop("on_failure", None)
 
-        job = self._create_job(func, args=args, kwargs=kwargs, timeout=timeout,
-                               id=job_id, result_ttl=job_result_ttl, ttl=job_ttl,
-                               description=job_description, meta=meta, queue_name=queue_name,
-                               depends_on=depends_on, on_success=on_success, on_failure=on_failure)
-        self.connection.zadd(self.scheduled_jobs_key,
-                              {job.id: to_unix(datetime.utcnow() + time_delta)})
+        job = self._create_job(
+            func,
+            args=args,
+            kwargs=kwargs,
+            timeout=timeout,
+            id=job_id,
+            result_ttl=job_result_ttl,
+            ttl=job_ttl,
+            failure_ttl=failure_ttl,
+            description=job_description,
+            meta=meta,
+            queue_name=queue_name,
+            depends_on=depends_on,
+            on_success=on_success,
+            on_failure=on_failure,
+        )
+        self.connection.zadd(
+            self.scheduled_jobs_key, {job.id: to_unix(datetime.utcnow() + time_delta)}
+        )
         return job
 
     def schedule(self, scheduled_time, func, args=None, kwargs=None,
