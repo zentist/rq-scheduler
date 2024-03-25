@@ -2,7 +2,6 @@ import logging
 import signal
 import time
 import os
-import socket
 from uuid import uuid4
 
 from datetime import datetime
@@ -20,7 +19,12 @@ from .utils import from_unix, to_unix, get_next_scheduled_time, rationalize_unti
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TTL = 60 * 60 * 24 # 1 day
+ONE_DAY = 60 * 60 * 24  # 1 day
+JOB_TTL = int(os.getenv("JOB_TTL", ONE_DAY))
+JOB_RESULT_TTL = int(os.getenv("JOB_RESULT_TTL", ONE_DAY))
+FAILURE_TTL = int(os.getenv("FAILURE_TTL", ONE_DAY))
+
+
 
 class Scheduler(object):
     redis_scheduler_namespace_prefix = 'rq:scheduler_instance:'
@@ -216,9 +220,9 @@ class Scheduler(object):
         """
         timeout = kwargs.pop("timeout", None)
         job_id = kwargs.pop("job_id", None)
-        job_ttl = kwargs.pop("job_ttl", DEFAULT_TTL)
-        job_result_ttl = kwargs.pop("job_result_ttl", DEFAULT_TTL)
-        failure_ttl = kwargs.pop("failure_ttl", DEFAULT_TTL)
+        job_ttl = kwargs.pop("job_ttl", JOB_TTL)
+        job_result_ttl = kwargs.pop("job_result_ttl", JOB_RESULT_TTL)
+        failure_ttl = kwargs.pop("failure_ttl", FAILURE_TTL)
         job_description = kwargs.pop("job_description", None)
         depends_on = kwargs.pop("depends_on", None)
         meta = kwargs.pop("meta", None)
@@ -254,9 +258,9 @@ class Scheduler(object):
         """
         timeout = kwargs.pop("timeout", None)
         job_id = kwargs.pop("job_id", None)
-        job_ttl = kwargs.pop("job_ttl", DEFAULT_TTL)
-        failure_ttl = kwargs.pop("failure_ttl", DEFAULT_TTL)
-        job_result_ttl = kwargs.pop("job_result_ttl", DEFAULT_TTL)
+        job_ttl = kwargs.pop("job_ttl", JOB_TTL)
+        failure_ttl = kwargs.pop("failure_ttl", JOB_RESULT_TTL)
+        job_result_ttl = kwargs.pop("job_result_ttl", FAILURE_TTL)
         job_description = kwargs.pop("job_description", None)
         depends_on = kwargs.pop("depends_on", None)
         meta = kwargs.pop("meta", None)
