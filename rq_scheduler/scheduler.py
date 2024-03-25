@@ -259,8 +259,9 @@ class Scheduler(object):
         timeout = kwargs.pop("timeout", None)
         job_id = kwargs.pop("job_id", None)
         job_ttl = kwargs.pop("job_ttl", JOB_TTL)
-        failure_ttl = kwargs.pop("failure_ttl", JOB_RESULT_TTL)
-        job_result_ttl = kwargs.pop("job_result_ttl", FAILURE_TTL)
+        job_result_ttl = kwargs.pop("job_result_ttl", JOB_RESULT_TTL)
+        failure_ttl = kwargs.pop("failure_ttl", FAILURE_TTL)
+
         job_description = kwargs.pop("job_description", None)
         depends_on = kwargs.pop("depends_on", None)
         meta = kwargs.pop("meta", None)
